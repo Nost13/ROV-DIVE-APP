@@ -1,0 +1,5 @@
+{
+  "name": "VesselOps ROV Hub",
+  "description": "A specialized maritime application for vessel identification and ROV operation management.",
+  "requestFramePermissions": []
+}
