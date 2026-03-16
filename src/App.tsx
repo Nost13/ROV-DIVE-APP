@@ -57,6 +57,7 @@ const INITIAL_DIVES: Dive[] = [];
 export default function App() {
   const [view, setView] = useState<AppView>('search');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
   const [personnel, setPersonnel] = useState<Personnel>({ pilotName: '', tenderName: '' });
   const [dives, setDives] = useState<Dive[]>(INITIAL_DIVES);
@@ -95,11 +96,27 @@ export default function App() {
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
     setSearchQuery(query);
-    const found = MOCK_VESSELS.find(v => v.imo === query.replace('IMO ', ''));
-    if (found) {
-      setSelectedVessel(found);
-    } else {
-      setSelectedVessel(null);
+  };
+
+  const fetchVesselInfo = async () => {
+    if (!searchQuery || searchQuery.length < 7) return;
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/vessel/${searchQuery}`);
+      if (!response.ok) throw new Error('Vessel not found');
+      
+      const data = await response.json();
+      setSelectedVessel(data);
+    } catch (error) {
+      console.error("Error fetching vessel info:", error);
+      // Fallback to mock if search fails or for testing
+      const found = MOCK_VESSELS.find(v => v.imo === searchQuery);
+      if (found) {
+        setSelectedVessel(found);
+      }
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -126,7 +143,7 @@ export default function App() {
           id: `log-${Date.now()}`,
           time: '00:00:00',
           event: 'ROV Launched',
-          description: 'Successful deployment from main deck.',
+          description: '',
           type: 'launch'
         }
       ]
@@ -150,7 +167,7 @@ export default function App() {
               id: `log-${Date.now()}`,
               time: elapsed,
               event: 'ROV Recovered',
-              description: 'Successful recovery. Mission complete.',
+              description: '',
               type: 'recovery'
             }
           ]
@@ -311,11 +328,19 @@ export default function App() {
                       <Search className="w-5 h-5" />
                     </div>
                     <input 
-                      className="block w-full h-14 pl-12 pr-4 bg-white border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-lg font-medium outline-none"
-                      placeholder="Enter Vessel IMO Number (e.g. 9423712)"
+                      className="block w-full h-14 pl-12 pr-24 bg-white border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-lg font-medium outline-none"
+                      placeholder="Enter Vessel IMO Number"
                       value={searchQuery}
                       onChange={handleSearch}
+                      onKeyDown={(e) => e.key === 'Enter' && fetchVesselInfo()}
                     />
+                    <button 
+                      onClick={fetchVesselInfo}
+                      disabled={isSearching || searchQuery.length < 7}
+                      className="absolute right-2 top-2 bottom-2 px-4 bg-primary text-white rounded-lg font-bold text-xs disabled:bg-slate-300 transition-all active:scale-95"
+                    >
+                      {isSearching ? '...' : 'FETCH'}
+                    </button>
                   </div>
                   <p className="text-xs text-slate-500 ml-1 flex items-center gap-1">
                     <Info className="w-3 h-3" />
@@ -360,7 +385,7 @@ export default function App() {
               )}
             </main>
 
-            <footer className="p-4 bg-white border-t border-slate-200 space-y-4">
+            <footer className="p-4 bg-white border-t border-slate-200">
               <button 
                 onClick={proceedToSetup}
                 disabled={!selectedVessel}
@@ -373,20 +398,6 @@ export default function App() {
                 <span>Proceed to Setup</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
-              <nav className="flex items-center justify-around py-2">
-                <button className="flex flex-col items-center gap-1 text-primary">
-                  <Search className="w-6 h-6" />
-                  <span className="text-[10px] font-bold uppercase">Search</span>
-                </button>
-                <button className="flex flex-col items-center gap-1 text-slate-400">
-                  <Anchor className="w-6 h-6" />
-                  <span className="text-[10px] font-bold uppercase">Operations</span>
-                </button>
-                <button className="flex flex-col items-center gap-1 text-slate-400">
-                  <HistoryIcon className="w-6 h-6" />
-                  <span className="text-[10px] font-bold uppercase">History</span>
-                </button>
-              </nav>
             </footer>
           </motion.div>
         )}
@@ -661,7 +672,9 @@ export default function App() {
                                     <p className={`text-sm font-bold ${dive.status === 'ongoing' ? 'text-primary' : 'text-slate-900'}`}>
                                       {log.event}
                                     </p>
-                                    <p className="text-xs text-slate-500 mt-0.5">{log.description}</p>
+                                    {log.description && (
+                                      <p className="text-xs text-slate-500 mt-0.5">{log.description}</p>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <button 
